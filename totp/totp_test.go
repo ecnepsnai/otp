@@ -18,13 +18,13 @@
 package totp
 
 import (
-	"github.com/pquerna/otp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
+	"bytes"
 	"encoding/base32"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/ecnepsnai/otp"
 )
 
 type tc struct {
@@ -61,14 +61,14 @@ var (
 	}
 )
 
-//
 // Test vectors from http://tools.ietf.org/html/rfc6238#appendix-B
 // NOTE -- the test vectors are documented as having the SAME
 // secret -- this is WRONG -- they have a variable secret
 // depending upon the hmac algorithm:
-// 		http://www.rfc-editor.org/errata_search.php?rfc=6238
-// this only took a few hours of head/desk interaction to figure out.
 //
+//	http://www.rfc-editor.org/errata_search.php?rfc=6238
+//
+// this only took a few hours of head/desk interaction to figure out.
 func TestValidateRFCMatrix(t *testing.T) {
 	for _, tx := range rfcMatrixTCs {
 		valid, err := ValidateCustom(tx.TOTP, tx.Secret, time.Unix(tx.TS, 0).UTC(),
@@ -76,10 +76,12 @@ func TestValidateRFCMatrix(t *testing.T) {
 				Digits:    otp.DigitsEight,
 				Algorithm: tx.Mode,
 			})
-		require.NoError(t, err,
-			"unexpected error totp=%s mode=%v ts=%v", tx.TOTP, tx.Mode, tx.TS)
-		require.True(t, valid,
-			"unexpected totp failure totp=%s mode=%v ts=%v", tx.TOTP, tx.Mode, tx.TS)
+		if err != nil {
+			t.Fatalf("unexpected error totp=%s mode=%v ts=%v", tx.TOTP, tx.Mode, tx.TS)
+		}
+		if !valid {
+			t.Fatalf("unexpected totp failure totp=%s mode=%v ts=%v", tx.TOTP, tx.Mode, tx.TS)
+		}
 	}
 }
 
@@ -90,8 +92,15 @@ func TestGenerateRFCTCs(t *testing.T) {
 				Digits:    otp.DigitsEight,
 				Algorithm: tx.Mode,
 			})
-		assert.Nil(t, err)
-		assert.Equal(t, tx.TOTP, passcode)
+		if err != nil {
+			t.Fatalf("Error: %s", err.Error())
+		}
+		if tx.TOTP != passcode {
+			t.Fatalf("'%s' does not equal '%s'", tx.TOTP, passcode)
+		}
+		if tx.TOTP != passcode {
+			t.Fatalf("'%s' does not equal '%s'", tx.TOTP, passcode)
+		}
 	}
 }
 
@@ -111,10 +120,12 @@ func TestValidateSkew(t *testing.T) {
 				Algorithm: tx.Mode,
 				Skew:      1,
 			})
-		require.NoError(t, err,
-			"unexpected error totp=%s mode=%v ts=%v", tx.TOTP, tx.Mode, tx.TS)
-		require.True(t, valid,
-			"unexpected totp failure totp=%s mode=%v ts=%v", tx.TOTP, tx.Mode, tx.TS)
+		if err != nil {
+			t.Fatalf("unexpected error totp=%s mode=%v ts=%v", tx.TOTP, tx.Mode, tx.TS)
+		}
+		if !valid {
+			t.Fatalf("unexpected totp failure totp=%s mode=%v ts=%v", tx.TOTP, tx.Mode, tx.TS)
+		}
 	}
 }
 
@@ -123,55 +134,89 @@ func TestGenerate(t *testing.T) {
 		Issuer:      "SnakeOil",
 		AccountName: "alice@example.com",
 	})
-	require.NoError(t, err, "generate basic TOTP")
-	require.Equal(t, "SnakeOil", k.Issuer(), "Extracting Issuer")
-	require.Equal(t, "alice@example.com", k.AccountName(), "Extracting Account Name")
-	require.Equal(t, 32, len(k.Secret()), "Secret is 32 bytes long as base32.")
+	if err != nil {
+		t.Fatalf("generate basic TOTP")
+	}
+	if "SnakeOil" != k.Issuer() {
+		t.Fatalf("Extracting Issuer")
+	}
+	if "alice@example.com" != k.AccountName() {
+		t.Fatalf("Extracting Account Name")
+	}
+	if 32 != len(k.Secret()) {
+		t.Fatalf("Secret is 32 bytes long as base32.")
+	}
 
 	k, err = Generate(GenerateOpts{
 		Issuer:      "Snake Oil",
 		AccountName: "alice@example.com",
 	})
-	require.NoError(t, err, "issuer with a space in the name")
-	require.Contains(t, k.String(), "issuer=Snake%20Oil")
+	if err != nil {
+		t.Fatalf("issuer with a space in the name")
+	}
+	if !strings.Contains(k.String(), "issuer=Snake%20Oil") {
+		t.FailNow()
+	}
 
 	k, err = Generate(GenerateOpts{
 		Issuer:      "SnakeOil",
 		AccountName: "alice@example.com",
 		SecretSize:  20,
 	})
-	require.NoError(t, err, "generate larger TOTP")
-	require.Equal(t, 32, len(k.Secret()), "Secret is 32 bytes long as base32.")
+	if err != nil {
+		t.Fatalf("generate larger TOTP")
+	}
+	if 32 != len(k.Secret()) {
+		t.Fatalf("Secret is 32 bytes long as base32.")
+	}
 
 	k, err = Generate(GenerateOpts{
 		Issuer:      "SnakeOil",
 		AccountName: "alice@example.com",
 		SecretSize:  13, // anything that is not divisible by 5, really
 	})
-	require.NoError(t, err, "Secret size is valid when length not divisible by 5.")
-	require.NotContains(t, k.Secret(), "=", "Secret has no escaped characters.")
+	if err != nil {
+		t.Fatalf("Secret size is valid when length not divisible by 5.")
+	}
+	if strings.Contains(k.Secret(), "=") {
+		t.Fatalf("Secret has no escaped characters.")
+	}
 
 	k, err = Generate(GenerateOpts{
 		Issuer:      "SnakeOil",
 		AccountName: "alice@example.com",
 		Secret:      []byte("helloworld"),
 	})
-	require.NoError(t, err, "Secret generation failed")
+	if err != nil {
+		t.Fatalf("Secret generation failed")
+	}
 	sec, err := b32NoPadding.DecodeString(k.Secret())
-	require.NoError(t, err, "Secret wa not valid base32")
-	require.Equal(t, sec, []byte("helloworld"), "Specified Secret was not kept")
+	if err != nil {
+		t.Fatalf("Secret wa not valid base32")
+	}
+	if !bytes.Equal(sec, []byte("helloworld")) {
+		t.Fatalf("Specified Secret was not kept")
+	}
 }
 
 func TestGoogleLowerCaseSecret(t *testing.T) {
 	w, err := otp.NewKeyFromURL(`otpauth://totp/Google%3Afoo%40example.com?secret=qlt6vmy6svfx4bt4rpmisaiyol6hihca&issuer=Google`)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Error: %s", err.Error())
+	}
 	sec := w.Secret()
-	require.Equal(t, "qlt6vmy6svfx4bt4rpmisaiyol6hihca", sec)
+	if "qlt6vmy6svfx4bt4rpmisaiyol6hihca" != sec {
+		t.FailNow()
+	}
 
 	n := time.Now().UTC()
 	code, err := GenerateCode(w.Secret(), n)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Error: %s", err.Error())
+	}
 
 	valid := Validate(code, w.Secret())
-	require.True(t, valid)
+	if !valid {
+		t.Fatalf("Invalid")
+	}
 }

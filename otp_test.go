@@ -19,39 +19,67 @@ package otp
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestKeyAllThere(t *testing.T) {
 	k, err := NewKeyFromURL(`otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&algorithm=sha256&digits=8`)
-	require.NoError(t, err, "failed to parse url")
-	require.Equal(t, "totp", k.Type(), "Extracting Type")
-	require.Equal(t, "Example", k.Issuer(), "Extracting Issuer")
-	require.Equal(t, "alice@google.com", k.AccountName(), "Extracting Account Name")
-	require.Equal(t, "JBSWY3DPEHPK3PXP", k.Secret(), "Extracting Secret")
-	require.Equal(t, AlgorithmSHA256, k.Algorithm())
-	require.Equal(t, DigitsEight, k.Digits())
+	if err != nil {
+		t.Fatalf("failed to parse url")
+	}
+	if "totp" != k.Type() {
+		t.Fatalf("Extracting Type")
+	}
+	if "Example" != k.Issuer() {
+		t.Fatalf("Extracting Issuer")
+	}
+	if "alice@google.com" != k.AccountName() {
+		t.Fatalf("Extracting Account Name")
+	}
+	if "JBSWY3DPEHPK3PXP" != k.Secret() {
+		t.Fatalf("Extracting Secret")
+	}
+	if AlgorithmSHA256 != k.Algorithm() {
+		t.FailNow()
+	}
+	if DigitsEight != k.Digits() {
+		t.FailNow()
+	}
 }
 
 func TestKeyIssuerOnlyInPath(t *testing.T) {
 	k, err := NewKeyFromURL(`otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP`)
-	require.NoError(t, err, "failed to parse url")
-	require.Equal(t, "Example", k.Issuer(), "Extracting Issuer")
-	require.Equal(t, "alice@google.com", k.AccountName(), "Extracting Account Name")
+	if err != nil {
+		t.Fatalf("failed to parse url")
+	}
+	if "Example" != k.Issuer() {
+		t.Fatalf("Extracting Issuer")
+	}
+	if "alice@google.com" != k.AccountName() {
+		t.Fatalf("Extracting Account Name")
+	}
 }
 
 func TestKeyNoIssuer(t *testing.T) {
 	k, err := NewKeyFromURL(`otpauth://totp/alice@google.com?secret=JBSWY3DPEHPK3PXP`)
-	require.NoError(t, err, "failed to parse url")
-	require.Equal(t, "", k.Issuer(), "Extracting Issuer")
-	require.Equal(t, "alice@google.com", k.AccountName(), "Extracting Account Name")
+	if err != nil {
+		t.Fatalf("failed to parse url")
+	}
+	if "" != k.Issuer() {
+		t.Fatalf("Extracting Issuer")
+	}
+	if "alice@google.com" != k.AccountName() {
+		t.Fatalf("Extracting Account Name")
+	}
 }
 
 func TestKeyWithNewLine(t *testing.T) {
 	w, err := NewKeyFromURL(`otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP
 `)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("Error: %s", err.Error())
+	}
 	sec := w.Secret()
-	require.Equal(t, "JBSWY3DPEHPK3PXP", sec)
+	if "JBSWY3DPEHPK3PXP" != sec {
+		t.FailNow()
+	}
 }

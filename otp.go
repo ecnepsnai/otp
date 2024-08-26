@@ -25,13 +25,9 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-	"image"
 	"net/url"
 	"strconv"
 	"strings"
-
-	"github.com/boombuler/barcode"
-	"github.com/boombuler/barcode/qr"
 )
 
 // Error when attempting to convert the secret from base32 to raw bytes.
@@ -55,8 +51,8 @@ type Key struct {
 // NewKeyFromURL creates a new Key from an TOTP or HOTP url.
 //
 // The URL format is documented here:
-//   https://github.com/google/google-authenticator/wiki/Key-Uri-Format
 //
+//	https://github.com/google/google-authenticator/wiki/Key-Uri-Format
 func NewKeyFromURL(orig string) (*Key, error) {
 	s := strings.TrimSpace(orig)
 
@@ -73,24 +69,6 @@ func NewKeyFromURL(orig string) (*Key, error) {
 
 func (k *Key) String() string {
 	return k.orig
-}
-
-// Image returns an QR-Code image of the specified width and height,
-// suitable for use by many clients like Google-Authenricator
-// to enroll a user's TOTP/HOTP key.
-func (k *Key) Image(width int, height int) (image.Image, error) {
-	b, err := qr.Encode(k.orig, qr.M, qr.Auto)
-	if err != nil {
-		return nil, err
-	}
-
-	b, err = barcode.Scale(b, width, height)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
 }
 
 // Type returns "hotp" or "totp".
@@ -195,7 +173,7 @@ type Algorithm int
 const (
 	// AlgorithmSHA1 should be used for compatibility with Google Authenticator.
 	//
-	// See https://github.com/pquerna/otp/issues/55 for additional details.
+	// See https://github.com/ecnepsnai/otp/issues/55 for additional details.
 	AlgorithmSHA1 Algorithm = iota
 	AlgorithmSHA256
 	AlgorithmSHA512

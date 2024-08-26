@@ -18,12 +18,12 @@
 package hotp
 
 import (
-	"github.com/pquerna/otp"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
+	"bytes"
 	"encoding/base32"
+	"strings"
 	"testing"
+
+	"github.com/ecnepsnai/otp"
 )
 
 type tc struct {
@@ -59,10 +59,12 @@ func TestValidateRFCMatrix(t *testing.T) {
 				Digits:    otp.DigitsSix,
 				Algorithm: tx.Mode,
 			})
-		require.NoError(t, err,
-			"unexpected error totp=%s mode=%v counter=%v", tx.TOTP, tx.Mode, tx.Counter)
-		require.True(t, valid,
-			"unexpected totp failure totp=%s mode=%v counter=%v", tx.TOTP, tx.Mode, tx.Counter)
+		if err != nil {
+			t.Fatalf("unexpected error totp=%s mode=%v counter=%v", tx.TOTP, tx.Mode, tx.Counter)
+		}
+		if !valid {
+			t.Fatalf("unexpected totp failure totp=%s mode=%v counter=%v", tx.TOTP, tx.Mode, tx.Counter)
+		}
 	}
 }
 
@@ -73,22 +75,34 @@ func TestGenerateRFCMatrix(t *testing.T) {
 				Digits:    otp.DigitsSix,
 				Algorithm: tx.Mode,
 			})
-		assert.Nil(t, err)
-		assert.Equal(t, tx.TOTP, passcode)
+		if err != nil {
+			t.Fatalf("Error: %s", err.Error())
+		}
+		if tx.TOTP != passcode {
+			t.Fatalf("'%s' does not equal '%s'", tx.TOTP, passcode)
+		}
 	}
 }
 
-func TestGenerateCodeCustom(t *testing.T){
+func TestGenerateCodeCustom(t *testing.T) {
 	secSha1 := base32.StdEncoding.EncodeToString([]byte("12345678901234567890"))
 
-	code, err := GenerateCodeCustom("foo",1,ValidateOpts{})
+	code, err := GenerateCodeCustom("foo", 1, ValidateOpts{})
 	print(code)
-	require.Equal(t, otp.ErrValidateSecretInvalidBase32, err, "Decoding of secret as base32 failed.")
-	require.Equal(t, "", code, "Code should be empty string when we have an error.")
+	if otp.ErrValidateSecretInvalidBase32 != err {
+		t.Fatalf("Decoding of secret as base32 failed.")
+	}
+	if "" != code {
+		t.Fatalf("Code should be empty string when we have an error.")
+	}
 
-	code, err = GenerateCodeCustom(secSha1,1,ValidateOpts{})
-	require.Equal(t, 6, len(code), "Code should be 6 digits when we have not an error.")
-	require.NoError(t, err, "Expected no error.")
+	code, err = GenerateCodeCustom(secSha1, 1, ValidateOpts{})
+	if 6 != len(code) {
+		t.Fatalf("Code should be 6 digits when we have not an error.")
+	}
+	if err != nil {
+		t.Fatalf("Expected no error.")
+	}
 }
 
 func TestValidateInvalid(t *testing.T) {
@@ -98,28 +112,42 @@ func TestValidateInvalid(t *testing.T) {
 		ValidateOpts{
 			Digits:    otp.DigitsSix,
 			Algorithm: otp.AlgorithmSHA1,
-	})
-	require.Equal(t, otp.ErrValidateInputInvalidLength, err, "Expected Invalid length error.")
-	require.Equal(t, false, valid, "Valid should be false when we have an error.")
+		})
+	if otp.ErrValidateInputInvalidLength != err {
+		t.Fatalf("Expected Invalid length error.")
+	}
+	if false != valid {
+		t.Fatalf("Valid should be false when we have an error.")
+	}
 
 	valid, err = ValidateCustom("foo", 11, secSha1,
 		ValidateOpts{
 			Digits:    otp.DigitsEight,
 			Algorithm: otp.AlgorithmSHA1,
 		})
-	require.Equal(t, otp.ErrValidateInputInvalidLength, err, "Expected Invalid length error.")
-	require.Equal(t, false, valid, "Valid should be false when we have an error.")
+	if otp.ErrValidateInputInvalidLength != err {
+		t.Fatalf("Expected Invalid length error.")
+	}
+	if false != valid {
+		t.Fatalf("Valid should be false when we have an error.")
+	}
 
 	valid, err = ValidateCustom("000000", 11, secSha1,
 		ValidateOpts{
 			Digits:    otp.DigitsSix,
 			Algorithm: otp.AlgorithmSHA1,
 		})
-	require.NoError(t, err, "Expected no error.")
-	require.Equal(t, false, valid, "Valid should be false.")
+	if err != nil {
+		t.Fatalf("Expected no error.")
+	}
+	if false != valid {
+		t.Fatalf("Valid should be false.")
+	}
 
 	valid = Validate("000000", 11, secSha1)
-	require.Equal(t, false, valid, "Valid should be false.")
+	if false != valid {
+		t.Fatalf("Valid should be false.")
+	}
 }
 
 // This tests for issue #10 - secrets without padding
@@ -129,8 +157,12 @@ func TestValidatePadding(t *testing.T) {
 			Digits:    otp.DigitsSix,
 			Algorithm: otp.AlgorithmSHA1,
 		})
-	require.NoError(t, err, "Expected no error.")
-	require.Equal(t, true, valid, "Valid should be true.")
+	if err != nil {
+		t.Fatalf("Expected no error.")
+	}
+	if true != valid {
+		t.Fatalf("Valid should be true.")
+	}
 }
 
 func TestValidateLowerCaseSecret(t *testing.T) {
@@ -139,8 +171,12 @@ func TestValidateLowerCaseSecret(t *testing.T) {
 			Digits:    otp.DigitsSix,
 			Algorithm: otp.AlgorithmSHA1,
 		})
-	require.NoError(t, err, "Expected no error.")
-	require.Equal(t, true, valid, "Valid should be true.")
+	if err != nil {
+		t.Fatalf("Expected no error.")
+	}
+	if true != valid {
+		t.Fatalf("Valid should be true.")
+	}
 }
 
 func TestGenerate(t *testing.T) {
@@ -148,55 +184,89 @@ func TestGenerate(t *testing.T) {
 		Issuer:      "SnakeOil",
 		AccountName: "alice@example.com",
 	})
-	require.NoError(t, err, "generate basic HOTP")
-	require.Equal(t, "SnakeOil", k.Issuer(), "Extracting Issuer")
-	require.Equal(t, "alice@example.com", k.AccountName(), "Extracting Account Name")
-	require.Equal(t, 16, len(k.Secret()), "Secret is 16 bytes long as base32.")
+	if err != nil {
+		t.Fatalf("generate basic HOTP")
+	}
+	if "SnakeOil" != k.Issuer() {
+		t.Fatalf("Extracting Issuer")
+	}
+	if "alice@example.com" != k.AccountName() {
+		t.Fatalf("Extracting Account Name")
+	}
+	if 16 != len(k.Secret()) {
+		t.Fatalf("Secret is 16 bytes long as base32.")
+	}
 
 	k, err = Generate(GenerateOpts{
 		Issuer:      "Snake Oil",
 		AccountName: "alice@example.com",
 	})
-	require.NoError(t, err, "issuer with a space in the name")
-	require.Contains(t, k.String(), "issuer=Snake%20Oil")
+	if err != nil {
+		t.Fatalf("issuer with a space in the name")
+	}
+	if !strings.Contains(k.String(), "issuer=Snake%20Oil") {
+		t.FailNow()
+	}
 
 	k, err = Generate(GenerateOpts{
 		Issuer:      "SnakeOil",
 		AccountName: "alice@example.com",
 		SecretSize:  20,
 	})
-	require.NoError(t, err, "generate larger HOTP")
-	require.Equal(t, 32, len(k.Secret()), "Secret is 32 bytes long as base32.")
+	if err != nil {
+		t.Fatalf("generate larger HOTP")
+	}
+	if 32 != len(k.Secret()) {
+		t.Fatalf("Secret is 32 bytes long as base32.")
+	}
 
 	k, err = Generate(GenerateOpts{
 		Issuer:      "",
 		AccountName: "alice@example.com",
 	})
-	require.Equal(t, otp.ErrGenerateMissingIssuer, err, "generate missing issuer")
-	require.Nil(t, k, "key should be nil on error.")
+	if otp.ErrGenerateMissingIssuer != err {
+		t.Fatalf("generate missing issuer")
+	}
+	if k != nil {
+		t.Fatalf("key should be nil on error.")
+	}
 
 	k, err = Generate(GenerateOpts{
 		Issuer:      "Foobar, Inc",
 		AccountName: "",
 	})
-	require.Equal(t, otp.ErrGenerateMissingAccountName, err, "generate missing account name.")
-	require.Nil(t, k, "key should be nil on error.")
+	if otp.ErrGenerateMissingAccountName != err {
+		t.Fatalf("generate missing account name.")
+	}
+	if k != nil {
+		t.Fatalf("key should be nil on error.")
+	}
 
 	k, err = Generate(GenerateOpts{
 		Issuer:      "SnakeOil",
 		AccountName: "alice@example.com",
 		SecretSize:  17, // anything that is not divisible by 5, really
 	})
-	require.NoError(t, err, "Secret size is valid when length not divisible by 5.")
-	require.NotContains(t, k.Secret(), "=", "Secret has no escaped characters.")
+	if err != nil {
+		t.Fatalf("Secret size is valid when length not divisible by 5.")
+	}
+	if strings.Contains(k.Secret(), "=") {
+		t.Fatalf("Secret has no escaped characters.")
+	}
 
 	k, err = Generate(GenerateOpts{
 		Issuer:      "SnakeOil",
 		AccountName: "alice@example.com",
 		Secret:      []byte("helloworld"),
 	})
-	require.NoError(t, err, "Secret generation failed")
+	if err != nil {
+		t.Fatalf("Secret generation failed")
+	}
 	sec, err := b32NoPadding.DecodeString(k.Secret())
-	require.NoError(t, err, "Secret was not valid base32")
-	require.Equal(t, sec, []byte("helloworld"), "Specified Secret was not kept")
+	if err != nil {
+		t.Fatalf("Secret was not valid base32")
+	}
+	if !bytes.Equal(sec, []byte("helloworld")) {
+		t.Fatalf("Specified Secret was not kept")
+	}
 }
